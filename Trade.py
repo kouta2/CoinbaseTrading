@@ -25,8 +25,6 @@ class TradeAlgo:
 
         self.order_book = OrderBook(product=product) # Create a connection to the order book on the exchange
 
-        print('Hello')
-
     @staticmethod
     def connect_to_gdax(key, secret, passphrase):
         return gdax.AuthenticatedClient(key, secret.encode('ascii'), passphrase)
@@ -42,7 +40,8 @@ class TradeAlgo:
         historic_data = []
         num_api_calls = 0
         while (start_time + minute_span) < curr_time:
-            historic_data.append(self.auth_client.get_product_historic_rates('ETH-USD', start=start_time, granularity=self.GRANULARITY))
+            history_chunk = self.auth_client.get_product_historic_rates('ETH-USD', start=start_time, granularity=self.GRANULARITY)
+            historic_data.append(history_chunk[::-1])
             start_time += minute_span
             num_api_calls += 1
             if num_api_calls == 3:
@@ -55,20 +54,10 @@ class TradeAlgo:
     def close_connections(self):
         self.order_book.close_book()
 
+    def execute(self):
+        pass
+
 if __name__=="__main__":
-    token_info = []
-    with open('secrets.txt') as f:
-        token_info = f.readlines()
-
-    API_PASS = (token_info[0].split(':'))[1]
-    API_KEY = (token_info[1].split(':'))[1]
-    API_SECRET = (token_info[2].split(':'))[1]
-    print(API_PASS)
-    print(API_KEY)
-    print(API_SECRET)
-    product_id = 'BCH-USD'
-    num_days_of_historic_data = 2
-
     def signal_handler(signal, frame):
         print('Cleanup...')
         try:
@@ -80,6 +69,18 @@ if __name__=="__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    token_info = []
+    with open('secrets.txt') as f:
+        token_info = f.readlines()
+
+    API_PASS = (token_info[0].split(':'))[1]
+    API_KEY = (token_info[1].split(':'))[1]
+    API_SECRET = (token_info[2].split(':'))[1]
+    product_id = 'BCH-USD'
+    num_days_of_historic_data = 2
+
     trade_algo = TradeAlgo(API_KEY, API_SECRET, API_PASS, product_id, num_days_of_historic_data)
+
+    trade_algo.execute()
 
     trade_algo.close_connections()
