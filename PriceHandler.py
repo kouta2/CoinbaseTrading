@@ -10,7 +10,7 @@ class PriceHandler:
         self.HISTORY_DEPTH = len(self.prices)
         self.min_price = min(self.prices)
         self.max_price = max(self.prices)
-        self.avg_price = reduce(lambda x, y: x + y, self.prices) / len(self.prices)
+        self.avg_price = PriceHandler.average_of_list(self.prices)
         self.median_calc = XSizedMedianCalc(self.times, self.prices, self.HISTORY_DEPTH)
 
     '''
@@ -42,8 +42,34 @@ class PriceHandler:
 
         return (times, prices, slopes, concavities)
 
-    def update_price_info(self):
-        pass
+    @staticmethod
+    def average_of_list(l):
+        return reduce(lambda x, y: x + y, l) / len(l)
+
+    '''
+    Given one time slot of data, find min, max, avg, and median prices and update our model
+    '''
+    def update_price_info(self, data):
+        times, prices, slopes, concavities = PriceHandler.get_prices(data)
+        new_time = times[0]
+        new_price = PriceHandler.average_of_list(prices)
+        new_slope = PriceHandler.average_of_list(slopes)
+        new_concavities = PriceHandler.average_of_list(concavities)
+
+        self.times.popleft()
+        self.prices.popleft()
+        self.slopes.popleft()
+        self.concavities.popleft()
+
+        self.times.append(new_time)
+        self.prices.append(new_price)
+        self.slopes.append(new_slope)
+        self.concavities.append(new_concavities)
+
+        self.min_price = min(self.prices)
+        self.max_price = max(self.prices)
+        self.avg_price = PriceHandler.average_of_list(self.prices)
+        self.median_calc.push_data(new_price)
 
     def get_price_info(self):
         return (self.min_price, self.max_price, self.avg_price, self.median_calc.get_median())
