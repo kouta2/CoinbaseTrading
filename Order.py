@@ -24,3 +24,6 @@ class Order:
 
     def set_is_completed(self, is_complete):
         self.is_completed = is_complete
+
+    def set_side(self, side):
+        self.side = side
