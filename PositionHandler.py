@@ -15,12 +15,12 @@ class PositionHandler:
 
         self.soft_position = self.position
         self.soft_cash = self.cash
-        # for order in orders:
-        #
-        #     if order['side'] == 'buy':
-        #         size = float(order['size'])
-        #         self.soft_position += size
-        #         self.soft_cash -= float(order['price']) * size
+        for page_of_orders in orders:
+            for order in page_of_orders:
+                if order['side'] == 'buy':
+                    size = float(order['size'])
+                    self.soft_position += size
+                    self.soft_cash -= float(order['price']) * size
 
     def get_position(self):
         return self.position
@@ -37,17 +37,13 @@ class PositionHandler:
     def update_position(self, order):
         size = order.get_volume()
         price = order.get_price()
-        if order.is_completed():
+        if order.get_is_completed() == True:
             if order.get_side() == 'bid':
                 self.position += size
-                self.soft_position += size
                 self.cash -= size * price
-                self.soft_cash -= size * price
             else:
                 self.position -= size
-                self.soft_position -= size
                 self.cash += size * price
-                self.soft_cash += size * price
         else:
             if order.get_side() == 'bid':
                 self.soft_position += size

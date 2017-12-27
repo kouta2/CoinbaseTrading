@@ -6,7 +6,7 @@ from XSizedMedianCalc import XSizedMedianCalc
 class PriceHandler:
 
     def __init__(self, historic_data):
-        self.times, self.prices, self.slopes, self.concavities = PriceHandler.get_prices(historic_data)
+        self.times, self.prices, self.slopes, self.concavities = self.get_prices(historic_data)
         self.HISTORY_DEPTH = len(self.prices)
         self.min_price = min(self.prices)
         self.max_price = max(self.prices)
@@ -50,7 +50,7 @@ class PriceHandler:
     Given one time slot of data, find min, max, avg, and median prices and update our model
     '''
     def update_price_info(self, data):
-        times, prices, slopes, concavities = PriceHandler.get_prices(data)
+        times, prices, slopes, concavities = self.get_prices([data])
         new_time = times[0]
         new_price = PriceHandler.average_of_list(prices)
         new_slope = PriceHandler.average_of_list(slopes)
@@ -69,19 +69,19 @@ class PriceHandler:
         self.min_price = min(self.prices)
         self.max_price = max(self.prices)
         self.avg_price = PriceHandler.average_of_list(self.prices)
-        self.median_calc.push_data(new_price)
+        self.median_calc.add_data(new_price)
 
     def get_price_info(self):
         return (self.min_price, self.max_price, self.avg_price, self.median_calc.get_median())
 
     def get_min_price(self):
-        return self.min_price
+        return round(self.min_price, 2)
 
     def get_max_price(self):
-        return self.max_price
+        return round(self.max_price, 2)
 
     def get_avg_price(self):
-        return self.avg_price
+        return round(self.avg_price, 2)
 
     def get_median_price(self):
-        return self.median_calc.get_median()
+        return round(self.median_calc.get_median(), 2)

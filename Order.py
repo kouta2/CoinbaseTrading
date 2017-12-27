@@ -19,5 +19,8 @@ class Order:
     def get_side(self):
         return self.side
 
-    def is_completed(self):
+    def get_is_completed(self):
         return self.is_completed
+
+    def set_is_completed(self, is_complete):
+        self.is_completed = is_complete

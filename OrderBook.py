@@ -21,10 +21,10 @@ class OrderBook(object):
         new_book = self.order_book.get_current_book()
         new_asks = new_book['asks']
         self.asks = []
-        for i in range(len(new_asks) - 1, len(new_asks) - self.DEPTH_OF_LOCAL_BOOK, -1):
+        for i in range(max(0, len(new_asks) - 1), max(0, len(new_asks) - 1 - self.DEPTH_OF_LOCAL_BOOK), -1):
             self.asks.append(Order(new_asks[i][0], new_asks[i][1], new_asks[i][2], 'ask', False))
         new_bids = new_book['bids']
-        for i in range(len(new_bids) - 1, len(new_bids) - self.DEPTH_OF_LOCAL_BOOK, -1):
+        for i in range(max(0, len(new_bids) - 1), max(0, len(new_bids) - 1 - self.DEPTH_OF_LOCAL_BOOK), -1):
             self.bids.append(Order(new_bids[i][0], new_bids[i][1], new_bids[i][2], 'bid', False))
 
     def get_asks(self):
@@ -32,3 +32,14 @@ class OrderBook(object):
 
     def get_bids(self):
         return self.bids
+
+
+if __name__=="__main__":
+    o = OrderBook('BCH-USD')
+    print(o.get_bids())
+    print(o.get_asks())
+    time.sleep(4)
+    o.update_book()
+    print(o.get_bids())
+    print(o.get_asks())
+    o.close_book()
