@@ -34,6 +34,8 @@ class MedianCalc(object):
         else:
             try:
                 self.min_heap.remove(data)
+                if len(self.max_heap) - 2 == len(self.min_heap):
+                    heapq.heappush(self.min_heap, (heapq.heappop(self.max_heap))[1])
             except ValueError:
                 print('Value Does Not Exist in Min Heap!')
 

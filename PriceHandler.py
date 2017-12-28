@@ -1,4 +1,5 @@
 from collections import deque
+from decimal import Decimal
 from functools import reduce
 
 from XSizedMedianCalc import XSizedMedianCalc
@@ -49,12 +50,11 @@ class PriceHandler:
     '''
     Given one time slot of data, find min, max, avg, and median prices and update our model
     '''
-    def update_price_info(self, data):
-        times, prices, slopes, concavities = self.get_prices([data])
-        new_time = times[0]
-        new_price = PriceHandler.average_of_list(prices)
-        new_slope = PriceHandler.average_of_list(slopes)
-        new_concavities = PriceHandler.average_of_list(concavities)
+    def update_price_info(self, new_time, new_prices):
+        print(new_prices)
+        new_price = float(PriceHandler.average_of_list(new_prices))
+        new_slope = new_price - self.prices[-1]
+        new_concavities = new_slope - self.slopes[-1]
 
         self.times.popleft()
         self.prices.popleft()
@@ -84,4 +84,4 @@ class PriceHandler:
         return round(self.avg_price, 2)
 
     def get_median_price(self):
-        return round(self.median_calc.get_median(), 2)
+        return round(float(self.median_calc.get_median()), 2)

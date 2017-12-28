@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import copy
 import gdax
 import json
 import logging
@@ -13,7 +14,7 @@ from PositionHandler import PositionHandler
 from PriceHandler import PriceHandler
 
 API_URL = 'https://api.gdax.com'
-logging.basicConfig(filename='trade.log',level=logging.DEBUG)
+logging.basicConfig(filename='trade.log',level=logging.INFO)
 
 
 class TradeAlgo:
@@ -22,13 +23,14 @@ class TradeAlgo:
         self.MINUTES_SPAN_OF_ONE_API_CALL = 450  # want 450 data points per API call
         self.GRANULARITY = 60  # want a data point every minute
         self.PERCENT = .03 # percent up and down from the median/average I want to buy and sell
-        self.ORDER_SIZES = .001 # sizes of my buy and sell orders
+        self.ORDER_SIZES = .0001 # sizes of my buy and sell orders
         self.MAX_POSITION = .1 # my max position I can be
         self.MIN_POSITION = 0.0 # my min position I can be
 
         self.product = product # the currency I am trading
 
         self.pending_orders = {} # maps order_ids to orders
+        self.cancelled_orders = {} # maps order_ids to orders
 
         self.auth_client = TradeAlgo.connect_to_gdax(key, secret, passphrase) # client used to make API calls
         self.historic_data = self.get_historic_data(num_days_of_historic_data) # collect historic data first
@@ -41,16 +43,18 @@ class TradeAlgo:
         self.position_handler = PositionHandler(product, self.get_account_details(product), self.auth_client.get_orders(product))
 
         self.order_book = OrderBook(product=product)  # Create a connection to the order book on the exchange
-        logging.info('{START: true}')
-        logging.info('{ type: START, time: %s,  position: %d, cash: %d, sell_price: %d, buy_price: %d }',
+        logging.info('{ type: INIT, time: %s,  position: %.4f, cash: %.2f, sell_price: %.2f, buy_price: %.2f }',
                      datetime.now(), self.position_handler.get_position(), self.position_handler.get_cash(),
                      self.sell_price, self.buy_price)
 
     def update_sell_and_buy_prices(self):
-        median_price = self.price_handler.get_median_price()
-        self.sell_price = round((1 + self.PERCENT) * median_price, 2)
-        self.buy_price = round((1 - self.PERCENT) * median_price, 2)
-        logging.info('{ type: UPDATE_SELL_AND_BUY_PRICES, time: %s, sell_price: %d, buy_price: %d }',
+        # median_price = self.price_handler.get_median_price()
+        # self.sell_price = round((1 + self.PERCENT) * median_price, 2)
+        # self.buy_price = round((1 - self.PERCENT) * median_price, 2)
+        avg_price = self.price_handler.get_avg_price()
+        self.sell_price = round((1 + self.PERCENT) * avg_price, 2)
+        self.buy_price = round((1 - self.PERCENT) * avg_price, 2)
+        logging.info('{ type: UPDATE_SELL_AND_BUY_PRICES, time: %s, sell_price: %.2f, buy_price: %.2f }',
                      datetime.now(), self.sell_price, self.buy_price)
 
     def get_account_details(self, product):
@@ -105,41 +109,36 @@ class TradeAlgo:
         logging.info('{ type: CLOSING_CONNECTION, time: %s}', datetime.now())
         self.order_book.close_book()
 
-    def check_for_filled_orders(self):
+    def update_status_of_unfilled_orders(self, i):
         recent_fills = self.auth_client.get_fills(product_id=self.product)
         for page_of_fills in recent_fills:
             for fill in page_of_fills:
                 if fill['order_id'] in self.pending_orders:
-                    logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %f, size: %f, side: %s}',
-                                 datetime.now(), fill['order_id'], fill['price'], fill['size'], fill['side'])
                     order = self.pending_orders[fill['order_id']]
                     order.set_is_completed(True)
                     self.position_handler.update_position(order)
+                    logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
+                                 datetime.now(), fill['order_id'], fill['price'], fill['size'], fill['side'],
+                                 self.position_handler.get_position(), self.position_handler.get_soft_position(),
+                                 self.position_handler.get_cash(), self.position_handler.get_soft_cash())
                     del self.pending_orders[fill['order_id']]
 
-    def execute(self):
-        while True:
-            i = 0
-            while i < 15:
-                self.check_for_filled_orders()  # update position
-                if i == 0:
-                    self.place_buy_order()
-                    self.place_sell_order()
+        if i == 0:
+            # undo soft position and soft cash changes
+            for order_id, order in self.cancelled_orders.items():
+                logging.info('{ type: CANCELLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s}',
+                             datetime.now(), order_id, order.get_price(), order.get_volume(), order.get_side())
+                if order.get_side() == 'buy':
+                    order.set_side('sell')
                 else:
-                    curr_asks = self.order_book.get_asks()
-                    if len(curr_asks) > 0 and curr_asks[0].get_price() <= self.buy_price:
-                        self.place_buy_order()
+                    order.set_side('buy')
+                self.position_handler.update_position(order)
 
-                    curr_bids = self.order_book.get_bids()
-                    if len(curr_bids) > 0 and curr_bids[0].get_price() >= self.sell_price:
-                        self.place_sell_order()
+                if order_id in self.pending_orders: # if order_id is in pending, remove it cuz its been enough time
+                    del self.pending_orders[order_id]
 
-                time.sleep(4) # need to sleep for a second between API calls
-                self.order_book.update_book()
-                i += 1
-            self.price_handler.update_price_info(self.get_last_minute_of_data())
-            self.update_sell_and_buy_prices()
-            time.sleep(1)
+            # the cancelled orders for next time are the pending orders that weren't filled
+            self.cancelled_orders = copy.deepcopy(self.pending_orders)
 
     def can_buy(self):
         max_pos = max(self.position_handler.get_position(), self.position_handler.get_soft_position())
@@ -167,9 +166,10 @@ class TradeAlgo:
                 new_order = Order(self.buy_price, self.ORDER_SIZES, json_response['id'], 'buy', False)
                 self.position_handler.update_position(new_order)
                 self.pending_orders[json_response['id']] = new_order
-                logging.info('{ type: BUY_ORDER, time: %s, order_id: %s, price: %f, size: %f, book_asks: %s, book_bids: %s}',
+                logging.info('{ type: BUY_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
                              datetime.now(), json_response['id'], self.buy_price, self.ORDER_SIZES,
-                             self.order_book.get_asks(), self.order_book.get_bids())
+                    self.position_handler.get_position(), self.position_handler.get_soft_position(),
+                    self.position_handler.get_cash(), self.position_handler.get_soft_cash())
             else:
                 logging.info('{ type: BUY_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
 
@@ -198,13 +198,43 @@ class TradeAlgo:
                 self.position_handler.update_position(new_order)
                 self.pending_orders[json_response['id']] = new_order
                 logging.info(
-                    '{ type: SELL_ORDER, time: %s, order_id: %s, price: %f, size: %f, book_asks: %s, book_bids: %s}',
+                    '{ type: SELL_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
                     datetime.now(), json_response['id'], self.sell_price, self.ORDER_SIZES,
-                    self.order_book.get_asks(), self.order_book.get_bids())
+                    self.position_handler.get_position(), self.position_handler.get_soft_position(),
+                    self.position_handler.get_cash(), self.position_handler.get_soft_cash())
             else:
                 logging.info('{ type: SELL_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
 
+    def execute(self):
+        while True:
+            i = 0
+            new_prices = []
+            while i < 15:
+                self.update_status_of_unfilled_orders(i)  # update position
+                if i == 0:
+                    self.place_buy_order()
+                    self.place_sell_order()
+                else:
+                    curr_asks = self.order_book.get_asks()
+                    if len(curr_asks) > 0 and curr_asks[0].get_price() <= self.buy_price:
+                        self.place_buy_order()
+
+                    curr_bids = self.order_book.get_bids()
+                    if len(curr_bids) > 0 and curr_bids[0].get_price() >= self.sell_price:
+                        self.place_sell_order()
+
+                    if len(curr_asks) > 0 and len(curr_bids) > 0:
+                        new_prices.append((curr_asks[0].get_price() + curr_bids[0].get_price()) / 2)
+
+                time.sleep(4) # need to sleep for a second between API calls
+                self.order_book.update_book()
+                i += 1
+            self.price_handler.update_price_info(datetime.now(), new_prices)
+            self.update_sell_and_buy_prices()
+            time.sleep(1)
+
 if __name__=="__main__":
+    logging.info('{STARTED: true}')
     def signal_handler(signal, frame):
         logging.info('{ type: SIGINT_RECEIVED, time: %s}', datetime.now())
         try:
