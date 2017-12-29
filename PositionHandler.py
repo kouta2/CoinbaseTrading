@@ -34,6 +34,13 @@ class PositionHandler:
     def get_soft_cash(self):
         return self.soft_cash
 
+    def restore_soft_info(self, order):
+        if order.get_is_completed() == False:
+            if order.get_side() == 'buy':
+                self.soft_cash += order.get_volume()
+            else:
+                self.soft_position += order.get_volume()
+
     def update_position(self, order):
         size = order.get_volume()
         price = order.get_price()

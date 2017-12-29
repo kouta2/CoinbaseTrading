@@ -16,8 +16,6 @@ class XSizedMedianCalc(MedianCalc):
             self.time_data.popleft()
 
     def add_data(self, data):
-        print('new data: ' + str(data))
-        print('list_of_curr_data: ' + str(self.list_of_data) + '\n')
         self.list_of_data.append(Decimal(data))
         self.push_data(Decimal(data))
         if len(self.list_of_data) > self.size:
