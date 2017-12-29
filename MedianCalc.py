@@ -10,6 +10,8 @@ class MedianCalc(object):
             self.push_data(elem)
 
     def get_median(self):
+        # print('max_heap: ' + str(self.max_heap))
+        # print('min_heap: ' + str(self.min_heap) + '\n')
         if len(self.max_heap) > len(self.min_heap):
             return self.max_heap[0][1]
         else:

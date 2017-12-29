@@ -23,7 +23,6 @@ class TradeAlgo:
     def __init__(self, key, secret, passphrase, product, num_days_of_historic_data):
         self.MINUTES_SPAN_OF_ONE_API_CALL = 450  # want 450 data points per API call
         self.GRANULARITY = 60  # want a data point every minute
-        # self.PERCENT = round(Decimal(.01), 2) # percent up and down from the median/average I want to buy and sell
         self.BUY_PERCENT = round(Decimal(.01), 2)
         self.SELL_PERCENT = round(Decimal(.01), 2)
         self.ORDER_SIZES = round(Decimal(.0001), 4) # sizes of my buy and sell orders
@@ -36,7 +35,7 @@ class TradeAlgo:
         self.cancelled_orders = {} # maps order_ids to orders
 
         self.auth_client = TradeAlgo.connect_to_gdax(key, secret, passphrase) # client used to make API calls
-        self.historic_data = self.get_last_hour_of_data() # collect historic data first
+        self.historic_data = self.get_last_x_minutes_of_data(60) # collect historic data first
 
         # Pass historic data into PriceHandler to get ranges of prices
         self.price_handler = PriceHandler(historic_data=self.historic_data)
@@ -76,13 +75,25 @@ class TradeAlgo:
         return gdax.AuthenticatedClient(key, secret.encode('ascii'), passphrase)
 
     def get_last_hour_of_data(self):
-        end_time = datetime.now()
+        end_time = datetime.utcnow()
         minute_span = timedelta(hours=1)  # want a data point every minute
         start_time = end_time - minute_span
         logging.info('{ type: GET_LAST_HOUR_OF_HISTORIC_DATA, time: %s, start_time: %s, end_time: %s}',
                      datetime.now(), start_time, end_time)
-        return [self.auth_client.get_product_historic_rates(self.product, start=start_time,
-                                                                        end=end_time)]
+        return [list(reversed(self.auth_client.get_product_historic_rates(self.product, start=start_time,
+                                                                        end=end_time)))]
+
+    def get_last_x_minutes_of_data(self, x):
+        curr_time = datetime.utcnow()
+        logging.info('{ type: GET_LAST_X_MINUTES_OF_HISTORIC_DATA, time: %s}',
+                     curr_time)
+        historic_data = []
+        for i in range(x, -1, -450):
+            start_time = curr_time - timedelta(minutes=x)
+            end_time = min(curr_time, start_time + timedelta(minutes=450))
+            historic_data.append(list(reversed(self.auth_client.get_product_historic_rates(self.product, start=start_time,
+                                                            end=end_time))))
+        return historic_data
 
     def close_connections(self):
         logging.info('{ type: CLOSING_CONNECTION, time: %s}', datetime.now())
@@ -141,7 +152,7 @@ class TradeAlgo:
             response = ''
             try:
                 response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
-                print(response.json())
+                # print(response.json())
                 if response.status_code == 200:
                     json_response = json.loads(response.text)
                     new_order = Order(price, self.ORDER_SIZES, json_response['id'], 'buy', False)
@@ -177,7 +188,7 @@ class TradeAlgo:
             response = ''
             try:
                 response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
-                print(response.json())
+                # print(response.json())
                 if response.status_code == 200:
                     json_response = json.loads(response.text)
                     new_order = Order(price, self.ORDER_SIZES, json_response['id'], 'sell', False)
@@ -218,6 +229,8 @@ class TradeAlgo:
 
                 time.sleep(4) # need to sleep for a second between API calls
                 self.order_book.update_book()
+                # print('ASKS:\n' + str([o.get_price() for o in self.order_book.get_asks()]))
+                # print('BIDS:\n' + str([o.get_price() for o in self.order_book.get_bids()]) + '\n')
                 i += 1
             self.price_handler.update_price_info(datetime.now(), new_prices)
             self.update_sell_and_buy_prices()
