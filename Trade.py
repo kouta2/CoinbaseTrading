@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 import copy
 import gdax
 import json
@@ -22,10 +23,12 @@ class TradeAlgo:
     def __init__(self, key, secret, passphrase, product, num_days_of_historic_data):
         self.MINUTES_SPAN_OF_ONE_API_CALL = 450  # want 450 data points per API call
         self.GRANULARITY = 60  # want a data point every minute
-        self.PERCENT = .03 # percent up and down from the median/average I want to buy and sell
-        self.ORDER_SIZES = .0001 # sizes of my buy and sell orders
-        self.MAX_POSITION = .1 # my max position I can be
-        self.MIN_POSITION = 0.0 # my min position I can be
+        # self.PERCENT = round(Decimal(.01), 2) # percent up and down from the median/average I want to buy and sell
+        self.BUY_PERCENT = round(Decimal(.01), 2)
+        self.SELL_PERCENT = round(Decimal(.01), 2)
+        self.ORDER_SIZES = round(Decimal(.0001), 4) # sizes of my buy and sell orders
+        self.MAX_POSITION = round(Decimal(.1), 1) # my max position I can be
+        self.MIN_POSITION = round(Decimal(0.0), 1) # my min position I can be
 
         self.product = product # the currency I am trading
 
@@ -33,7 +36,7 @@ class TradeAlgo:
         self.cancelled_orders = {} # maps order_ids to orders
 
         self.auth_client = TradeAlgo.connect_to_gdax(key, secret, passphrase) # client used to make API calls
-        self.historic_data = self.get_historic_data(num_days_of_historic_data) # collect historic data first
+        self.historic_data = self.get_last_hour_of_data() # collect historic data first
 
         # Pass historic data into PriceHandler to get ranges of prices
         self.price_handler = PriceHandler(historic_data=self.historic_data)
@@ -43,19 +46,17 @@ class TradeAlgo:
         self.position_handler = PositionHandler(product, self.get_account_details(product), self.auth_client.get_orders(product))
 
         self.order_book = OrderBook(product=product)  # Create a connection to the order book on the exchange
-        logging.info('{ type: INIT, time: %s,  position: %.4f, cash: %.2f, sell_price: %.2f, buy_price: %.2f }',
-                     datetime.now(), self.position_handler.get_position(), self.position_handler.get_cash(),
-                     self.sell_price, self.buy_price)
+        logging.info('{ type: INIT, time: %s,  position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f, sell_price: %.2f, buy_price: %.2f }', datetime.now(), float(self.position_handler.get_position()), float(self.position_handler.get_soft_position()), float(self.position_handler.get_cash()), float(self.position_handler.get_soft_cash()), float(self.sell_price), float(self.buy_price))
 
     def update_sell_and_buy_prices(self):
-        # median_price = self.price_handler.get_median_price()
-        # self.sell_price = round((1 + self.PERCENT) * median_price, 2)
-        # self.buy_price = round((1 - self.PERCENT) * median_price, 2)
-        avg_price = self.price_handler.get_avg_price()
-        self.sell_price = round((1 + self.PERCENT) * avg_price, 2)
-        self.buy_price = round((1 - self.PERCENT) * avg_price, 2)
+        median_price = self.price_handler.get_median_price()
+        self.sell_price = round((1 + self.SELL_PERCENT) * median_price, 2)
+        self.buy_price = round((1 - self.BUY_PERCENT) * median_price, 2)
+        # avg_price = self.price_handler.get_avg_price()
+        # self.sell_price = round((1 + self.SELL_PERCENT) * avg_price, 2)
+        # self.buy_price = round((1 - self.BUY_PERCENT) * avg_price, 2)
         logging.info('{ type: UPDATE_SELL_AND_BUY_PRICES, time: %s, sell_price: %.2f, buy_price: %.2f }',
-                     datetime.now(), self.sell_price, self.buy_price)
+                     datetime.now(), float(self.sell_price), float(self.buy_price))
 
     def get_account_details(self, product):
         accounts = self.auth_client.get_accounts()
@@ -74,36 +75,14 @@ class TradeAlgo:
     def connect_to_gdax(key, secret, passphrase):
         return gdax.AuthenticatedClient(key, secret.encode('ascii'), passphrase)
 
-    '''
-        returns a list of list of historic data for the past num_days_of_historic_data every minute
-    '''
-    def get_historic_data(self, num_days_of_historic_data):
-        curr_time = datetime.now()
-        delta_from_current_time = timedelta(days=num_days_of_historic_data)
-        minute_span = timedelta(minutes=self.MINUTES_SPAN_OF_ONE_API_CALL) # want a data point every minute
-        start_time = curr_time - delta_from_current_time
-        historic_data = []
-        num_api_calls = 0
-        while (start_time + minute_span) <= curr_time:
-            history_chunk = self.auth_client.get_product_historic_rates(self.product, start=start_time, granularity=self.GRANULARITY)
-            historic_data.append(history_chunk[::-1])
-            start_time += minute_span
-            num_api_calls += 1
-            if num_api_calls == 3:
-                time.sleep(1)
-                print('need to sleep to not exceed rate limit')
-                num_api_calls = 0
-
-        return historic_data
-
-    def get_last_minute_of_data(self):
+    def get_last_hour_of_data(self):
         end_time = datetime.now()
-        minute_span = timedelta(minutes=1)  # want a data point every minute
+        minute_span = timedelta(hours=1)  # want a data point every minute
         start_time = end_time - minute_span
-        logging.info('{ type: GET_LAST_MIN_OF_HISTORIC_DATA, time: %s, start_time: %s, end_time: %s}',
+        logging.info('{ type: GET_LAST_HOUR_OF_HISTORIC_DATA, time: %s, start_time: %s, end_time: %s}',
                      datetime.now(), start_time, end_time)
-        return self.auth_client.get_product_historic_rates(self.product, start=start_time,
-                                                                        end=end_time)
+        return [self.auth_client.get_product_historic_rates(self.product, start=start_time,
+                                                                        end=end_time)]
 
     def close_connections(self):
         logging.info('{ type: CLOSING_CONNECTION, time: %s}', datetime.now())
@@ -113,21 +92,21 @@ class TradeAlgo:
         recent_fills = self.auth_client.get_fills(product_id=self.product)
         for page_of_fills in recent_fills:
             for fill in page_of_fills:
-                if fill['order_id'] in self.pending_orders:
-                    order = self.pending_orders[fill['order_id']]
-                    order.set_is_completed(True)
-                    self.position_handler.update_position(order)
-                    logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
-                                 datetime.now(), fill['order_id'], fill['price'], fill['size'], fill['side'],
-                                 self.position_handler.get_position(), self.position_handler.get_soft_position(),
-                                 self.position_handler.get_cash(), self.position_handler.get_soft_cash())
-                    del self.pending_orders[fill['order_id']]
+                try:
+                    if fill['order_id'] in self.pending_orders:
+                        order = self.pending_orders[fill['order_id']]
+                        order.set_is_completed(True)
+                        self.position_handler.update_position(order)
+                        logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}', datetime.now(), fill['order_id'], float(fill['price']), float(fill['size']), fill['side'], float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)), float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
+                        del self.pending_orders[fill['order_id']]
+                except BaseException as e:
+                    logging.info("{ERROR_GETTING_FILLS: %s, recent_fills: %s}", e, recent_fills)
 
         if i == 0:
             # undo soft position and soft cash changes
             for order_id, order in self.cancelled_orders.items():
                 logging.info('{ type: CANCELLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s}',
-                             datetime.now(), order_id, order.get_price(), order.get_volume(), order.get_side())
+                             datetime.now(), order_id, float(order.get_price()), float(order.get_volume()), order.get_side())
                 if order.get_side() == 'buy':
                     order.set_side('sell')
                 else:
@@ -140,70 +119,79 @@ class TradeAlgo:
             # the cancelled orders for next time are the pending orders that weren't filled
             self.cancelled_orders = copy.deepcopy(self.pending_orders)
 
-    def can_buy(self):
+    def can_buy(self, price):
         max_pos = max(self.position_handler.get_position(), self.position_handler.get_soft_position())
         min_cash = min(self.position_handler.get_cash(), self.position_handler.get_soft_cash())
-        return max_pos + self.ORDER_SIZES < self.MAX_POSITION and \
-               min_cash >= self.buy_price * self.ORDER_SIZES
+        return max_pos + self.ORDER_SIZES < self.MAX_POSITION and min_cash >= price * self.ORDER_SIZES
 
-    def place_buy_order(self):
-        if self.can_buy():
+    def place_buy_order(self, book_price):
+        price = min(self.buy_price, book_price - round(Decimal(.02), 2))
+        if self.can_buy(price) == True:
             order_url = API_URL + '/orders'
             order_data = {
                 'type': 'limit',
                 'side': 'buy',
                 'product_id': self.product,
-                'price': self.buy_price,
-                'size': self.ORDER_SIZES,
+                'price': float(price),
+                'size': float(self.ORDER_SIZES),
                 'time_in_force': 'GTT',
                 'cancel_after': 'min',
                 'post_only': True
             }
-            response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
-            print(response.json())
-            if response.status_code == 200:
-                json_response = json.loads(response.text)
-                new_order = Order(self.buy_price, self.ORDER_SIZES, json_response['id'], 'buy', False)
-                self.position_handler.update_position(new_order)
-                self.pending_orders[json_response['id']] = new_order
-                logging.info('{ type: BUY_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
-                             datetime.now(), json_response['id'], self.buy_price, self.ORDER_SIZES,
-                    self.position_handler.get_position(), self.position_handler.get_soft_position(),
-                    self.position_handler.get_cash(), self.position_handler.get_soft_cash())
-            else:
-                logging.info('{ type: BUY_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+            response = ''
+            try:
+                response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
+                print(response.json())
+                if response.status_code == 200:
+                    json_response = json.loads(response.text)
+                    new_order = Order(price, self.ORDER_SIZES, json_response['id'], 'buy', False)
+                    self.position_handler.update_position(new_order)
+                    self.pending_orders[json_response['id']] = new_order
+                    logging.info('{ type: BUY_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
+                                 datetime.now(), json_response['id'], float(price), float(self.ORDER_SIZES),
+                                float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
+                                float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
+                else:
+                    logging.info('{ type: BUY_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+            except BaseException as e:
+                logging.info("{ERROR_MAKING_BUY_ORDER: %s, response: %s}", e, response)
 
     def can_sell(self):
         min_pos = min(self.position_handler.get_position(), self.position_handler.get_soft_position())
         return min_pos - self.ORDER_SIZES > self.MIN_POSITION
 
-    def place_sell_order(self):
-        if self.can_sell():
+    def place_sell_order(self, book_price):
+        price = max(self.sell_price, book_price + round(Decimal(.02), 2))
+        if self.can_sell() == True:
             order_url = API_URL + '/orders'
             order_data = {
                 'type': 'limit',
                 'side': 'sell',
                 'product_id': self.product,
-                'price': self.sell_price,
-                'size': self.ORDER_SIZES,
+                'price': float(price),
+                'size': float(self.ORDER_SIZES),
                 'time_in_force': 'GTT',
                 'cancel_after': 'min',
                 'post_only': True
             }
-            response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
-            print(response.json())
-            if response.status_code == 200:
-                json_response = json.loads(response.text)
-                new_order = Order(self.sell_price, self.ORDER_SIZES, json_response['id'], 'sell', False)
-                self.position_handler.update_position(new_order)
-                self.pending_orders[json_response['id']] = new_order
-                logging.info(
-                    '{ type: SELL_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
-                    datetime.now(), json_response['id'], self.sell_price, self.ORDER_SIZES,
-                    self.position_handler.get_position(), self.position_handler.get_soft_position(),
-                    self.position_handler.get_cash(), self.position_handler.get_soft_cash())
-            else:
-                logging.info('{ type: SELL_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+            response = ''
+            try:
+                response = requests.post(order_url, data=json.dumps(order_data), auth=self.auth_client.auth)
+                print(response.json())
+                if response.status_code == 200:
+                    json_response = json.loads(response.text)
+                    new_order = Order(price, self.ORDER_SIZES, json_response['id'], 'sell', False)
+                    self.position_handler.update_position(new_order)
+                    self.pending_orders[json_response['id']] = new_order
+                    logging.info(
+                        '{ type: SELL_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
+                        datetime.now(), json_response['id'], float(price), float(self.ORDER_SIZES),
+                        float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
+                        float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
+                else:
+                    logging.info('{ type: SELL_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+            except BaseException as e:
+                logging.info("{ERROR_MAKING_SELL_ORDER: %s, response: %s}", e, response)
 
     def execute(self):
         while True:
@@ -211,17 +199,19 @@ class TradeAlgo:
             new_prices = []
             while i < 15:
                 self.update_status_of_unfilled_orders(i)  # update position
+                curr_asks = self.order_book.get_asks()
+                curr_bids = self.order_book.get_bids()
                 if i == 0:
-                    self.place_buy_order()
-                    self.place_sell_order()
+                    if len(curr_asks) > 0:
+                        self.place_buy_order(curr_asks[0].get_price())
+                    if len(curr_bids) > 0:
+                        self.place_sell_order(curr_bids[0].get_price())
                 else:
-                    curr_asks = self.order_book.get_asks()
                     if len(curr_asks) > 0 and curr_asks[0].get_price() <= self.buy_price:
-                        self.place_buy_order()
+                        self.place_buy_order(curr_asks[0].get_price())
 
-                    curr_bids = self.order_book.get_bids()
                     if len(curr_bids) > 0 and curr_bids[0].get_price() >= self.sell_price:
-                        self.place_sell_order()
+                        self.place_sell_order(curr_bids[0].get_price())
 
                     if len(curr_asks) > 0 and len(curr_bids) > 0:
                         new_prices.append((curr_asks[0].get_price() + curr_bids[0].get_price()) / 2)

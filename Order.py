@@ -1,8 +1,9 @@
+from decimal import Decimal
 
 class Order:
     def __init__(self, price, volume, id, side, is_completed):
-        self.price = price
-        self.volume = volume
+        self.price = Decimal(price)
+        self.volume = Decimal(volume)
         self.id = id
         self.side = side
         self.is_completed = is_completed
