@@ -152,9 +152,9 @@ class TradeAlgo:
                                 float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
                                 float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
                 else:
-                    logging.info('{ type: BUY_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+                    logging.info('{ type: BAD_BUY_ORDER_REQUEST, time: %s, response: %s}', datetime.now(), response.json())
             except BaseException as e:
-                logging.info("{ERROR_MAKING_BUY_ORDER: %s, response: %s}", e, response)
+                logging.info("{ERROR_MAKING_BUY_ORDER: %s, time: %s, response: %s}", e, datetime.now(), response)
 
     def can_sell(self):
         min_pos = min(self.position_handler.get_position(), self.position_handler.get_soft_position())
@@ -189,9 +189,9 @@ class TradeAlgo:
                         float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
                         float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
                 else:
-                    logging.info('{ type: SELL_ORDER, time: %s, error: True, response: %s}', datetime.now(), response.json())
+                    logging.info('{ type: BAD_SELL_ORDER_REQUEST, time: %s, response: %s}', datetime.now(), response.json())
             except BaseException as e:
-                logging.info("{ERROR_MAKING_SELL_ORDER: %s, response: %s}", e, response)
+                logging.info("{ERROR_MAKING_SELL_ORDER: %s, time: %s, response: %s}", e, datetime.now(), response)
 
     def execute(self):
         while True:
