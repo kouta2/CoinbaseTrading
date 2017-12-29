@@ -1,7 +1,7 @@
 import gdax
 import time
 
-from Order import Order
+from TradingAlgo.Order import Order
 
 class OrderBook(object):
 

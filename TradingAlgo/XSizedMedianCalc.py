@@ -1,7 +1,7 @@
 from collections import deque
 from decimal import Decimal
 
-from MedianCalc import MedianCalc
+from TradingAlgo.MedianCalc import MedianCalc
 
 class XSizedMedianCalc(MedianCalc):
     def __init__(self, time_data, list_of_data, size):

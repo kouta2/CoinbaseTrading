@@ -37,7 +37,7 @@ class PositionHandler:
     def restore_soft_info(self, order):
         if order.get_is_completed() == False:
             if order.get_side() == 'buy':
-                self.soft_cash += order.get_volume()
+                self.soft_cash += order.get_price() * order.get_volume()
             else:
                 self.soft_position += order.get_volume()
 

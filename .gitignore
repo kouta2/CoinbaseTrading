@@ -105,6 +105,7 @@ venv.bak/
 
 # secrets
 secrets.txt
+account_info.txt
 
 # PyCharm project
 .idea/

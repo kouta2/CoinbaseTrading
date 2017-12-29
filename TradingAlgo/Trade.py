@@ -9,10 +9,10 @@ import signal
 import sys
 import time
 
-from Order import Order
-from OrderBook import OrderBook
-from PositionHandler import PositionHandler
-from PriceHandler import PriceHandler
+from TradingAlgo.Order import Order
+from TradingAlgo.OrderBook import OrderBook
+from TradingAlgo.PositionHandler import PositionHandler
+from TradingAlgo.PriceHandler import PriceHandler
 
 API_URL = 'https://api.gdax.com'
 logging.basicConfig(filename='trade.log',level=logging.INFO)

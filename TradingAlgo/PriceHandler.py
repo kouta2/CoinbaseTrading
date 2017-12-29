@@ -2,7 +2,7 @@ from collections import deque
 from decimal import Decimal
 from functools import reduce
 
-from XSizedMedianCalc import XSizedMedianCalc
+from TradingAlgo.XSizedMedianCalc import XSizedMedianCalc
 
 class PriceHandler:
 
