@@ -1,8 +1,9 @@
 # /usr/bin/env python
 # Download the twilio-python library from twilio.com/docs/libraries/python
-import logging
+from datetime import datetime
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
+import logging
 
 from SMSNotifications.GdaxClient import GdaxClient
 from SMSNotifications.TwilioInformation import TwilioInformation
@@ -35,7 +36,7 @@ def hello():
     global message_response
 
     from_number = request.values.get('From', None)
-    logging.info('{MESSAGE_RECEIVED_FROM: %s}', from_number)
+    logging.info('{MESSAGE_RECEIVED_FROM: %s, time: %s}', from_number, datetime.utcnow())
     if from_number in callers:
         body = request.values.get('Body', None)
         logging.info('{MESSAGE_BODY: %s}', body)
