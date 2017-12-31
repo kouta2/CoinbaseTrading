@@ -17,7 +17,6 @@ from TradingAlgo.PriceHandler import PriceHandler
 API_URL = 'https://api.gdax.com'
 logging.basicConfig(filename='trade.log',level=logging.INFO)
 
-
 class TradeAlgo:
 
     def __init__(self, key, secret, passphrase, product, num_days_of_historic_data):
@@ -35,7 +34,7 @@ class TradeAlgo:
         self.cancelled_orders = {} # maps order_ids to orders
 
         self.auth_client = TradeAlgo.connect_to_gdax(key, secret, passphrase) # client used to make API calls
-        self.historic_data = self.get_last_x_minutes_of_data(30) # collect historic data first
+        self.historic_data = self.get_last_x_minutes_of_data(15) # collect historic data first
 
         # Pass historic data into PriceHandler to get ranges of prices
         self.price_handler = PriceHandler(historic_data=self.historic_data)
@@ -106,26 +105,45 @@ class TradeAlgo:
                     try:
                         if fill['order_id'] in self.pending_orders:
                             order = self.pending_orders[fill['order_id']]
-                            order.set_is_completed(True)
-                            self.position_handler.update_position(order)
-                            logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}', datetime.utcnow(), fill['order_id'], float(fill['price']), float(fill['size']), fill['side'], float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)), float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
-                            del self.pending_orders[fill['order_id']]
+                            if order.get_volume() - fill['size'] < .00001:
+                                order.set_is_completed(True)
+                                self.position_handler.update_position(order)
+                                logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f, order_complete: True}',
+                                             datetime.utcnow(), fill['order_id'], float(fill['price']), float(fill['size']), fill['side'],
+                                             float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
+                                             float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
+                                del self.pending_orders[fill['order_id']]
+                            else:
+                                order.set_volume(order.get_volume() - fill['size'])
+                                self.position_handler.update_position(
+                                    Order(price=fill['price'], id=fill['order_id'], volume=fill['size'], side=fill['side'], is_completed=True))
+                                logging.info(
+                                    '{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f, order_complete: False}',
+                                    datetime.utcnow(), fill['order_id'], float(fill['price']), float(fill['size']),
+                                    fill['side'],
+                                    float(round(self.position_handler.get_position(), 4)),
+                                    float(round(self.position_handler.get_soft_position(), 4)),
+                                    float(round(self.position_handler.get_cash(), 2)),
+                                    float(round(self.position_handler.get_soft_cash(), 2)))
                     except BaseException as e:
-                        logging.info("{ERROR_PARSING_FILLS: %s, recent_fills: %s}", e, recent_fills)
+                        logging.info("{ERROR_PARSING_FILLS: %s, recent_fills: %s}", e, fill)
 
             if i == 0:
                 # undo soft position and soft cash changes
                 for order_id, order in self.cancelled_orders.items():
-                    logging.info('{ type: CANCELLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s}',
-                                 datetime.utcnow(), order_id, float(order.get_price()), float(order.get_volume()), order.get_side())
+                    old_side = order.get_side()
                     if order.get_side() == 'buy':
                         order.set_side('sell')
                     else:
                         order.set_side('buy')
                     self.position_handler.restore_soft_info(order)
+                    logging.info('{ type: CANCELLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f}',
+                                 datetime.utcnow(), order_id, float(order.get_price()), float(order.get_volume()), old_side,
+                                 float(round(self.position_handler.get_position(), 4)), float(round(self.position_handler.get_soft_position(), 4)),
+                                 float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
 
                     if order_id in self.pending_orders: # if order_id is in pending, remove it cuz its been enough time
-                        del self.pending_orders[order_id]\
+                        del self.pending_orders[order_id]
 
                 # the cancelled orders for next time are the pending orders that weren't filled
                 self.cancelled_orders = copy.deepcopy(self.pending_orders)
@@ -216,8 +234,8 @@ class TradeAlgo:
             new_prices = []
             while i < 15:
                 self.update_status_of_unfilled_orders(i)  # update position
-                curr_asks = self.order_book.get_asks()
-                curr_bids = self.order_book.get_bids()
+                curr_asks = self.order_book.get_sell_orders()
+                curr_bids = self.order_book.get_buy_orders()
                 if i == 0:
                     if len(curr_asks) > 0:
                         self.place_buy_order(curr_asks[0].get_price())
@@ -238,8 +256,8 @@ class TradeAlgo:
                     self.order_book.update_book()
                 except BaseException as e:
                     logging.info('{ERROR_UPDATING_BOOK: %s}', e)
-                # print('ASKS:\n' + str([o.get_price() for o in self.order_book.get_asks()]))
-                # print('BIDS:\n' + str([o.get_price() for o in self.order_book.get_bids()]) + '\n')
+                # print('ASKS:\n' + str([o.get_price() for o in self.order_book.get_sell_orders()]))
+                # print('BIDS:\n' + str([o.get_price() for o in self.order_book.get_buy_orders()]) + '\n')
                 i += 1
             self.price_handler.update_price_info(datetime.utcnow(), new_prices)
             self.update_sell_and_buy_prices()
