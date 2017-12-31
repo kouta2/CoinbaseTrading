@@ -99,13 +99,13 @@ class TradeAlgo:
 
     def update_status_of_unfilled_orders(self, i):
         try:
-            recent_fills = self.auth_client.get_fills(product_id=self.product)
+            recent_fills = self.auth_client.get_fills(product_id=self.product,limit=100)
             for page_of_fills in recent_fills:
                 for fill in page_of_fills:
                     try:
                         if fill['order_id'] in self.pending_orders:
                             order = self.pending_orders[fill['order_id']]
-                            if order.get_volume() - fill['size'] < .00001:
+                            if float(order.get_volume()) - float(fill['size']) < .00001:
                                 order.set_is_completed(True)
                                 self.position_handler.update_position(order)
                                 logging.info('{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f, order_complete: True}',
@@ -114,9 +114,9 @@ class TradeAlgo:
                                              float(round(self.position_handler.get_cash(), 2)), float(round(self.position_handler.get_soft_cash(), 2)))
                                 del self.pending_orders[fill['order_id']]
                             else:
-                                order.set_volume(order.get_volume() - fill['size'])
+                                order.set_volume(order.get_volume() - float(fill['size']))
                                 self.position_handler.update_position(
-                                    Order(price=fill['price'], id=fill['order_id'], volume=fill['size'], side=fill['side'], is_completed=True))
+                                    Order(price=float(fill['price']), id=fill['order_id'], volume=float(fill['size']), side=fill['side'], is_completed=True))
                                 logging.info(
                                     '{ type: FILLED_ORDER, time: %s, order_id: %s, price: %.2f, size: %.4f, side: %s, position: %.4f, soft_position: %.4f, cash: %.2f, soft_cash: %.2f, order_complete: False}',
                                     datetime.utcnow(), fill['order_id'], float(fill['price']), float(fill['size']),
