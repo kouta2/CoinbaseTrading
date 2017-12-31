@@ -28,3 +28,6 @@ class Order:
 
     def set_side(self, side):
         self.side = side
+
+    def set_volume(self, volume):
+        self.volume = volume
