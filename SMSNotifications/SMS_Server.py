@@ -19,7 +19,7 @@ callers = {
 }
 
 message_response = {
-    'STOP_TRADING': '\nYou typed Stop',
+    'STOP_TRADING': '\nYou typed Stop Trading',
     'OPTIONS': '\nPlease type either "ACCOUNT", "LAST", or "STOP TRADING"\n\nACCOUNT: typing this will get you information '
            'about your current account balance.\n\nLAST: typing this will execute your last successful command.'
            '\n\nSTOP_TRADING: typing this will cancel all unfilled orders and stop the trading algorithm'
@@ -60,7 +60,7 @@ def hello():
             last_message = 'HI'
             message = 'Hello ' + callers[from_number]
 
-        resp.message(message, to=from_number)
+        resp.message(message)
         return str(resp)
 
     return 'Go away. This is not for you!'
