@@ -24,7 +24,7 @@ class TradeAlgo:
         self.GRANULARITY = 60  # want a data point every minute
         self.BUY_PERCENT = round(Decimal(.01), 2)
         self.SELL_PERCENT = round(Decimal(.01), 2)
-        self.ORDER_SIZES = round(Decimal(.0001), 4) # sizes of my buy and sell orders
+        self.ORDER_SIZES = round(Decimal(.0005), 4) # round(Decimal(.0001), 4) # sizes of my buy and sell orders
         self.MAX_POSITION = round(Decimal(.1), 1) # my max position I can be
         self.MIN_POSITION = round(Decimal(0.0), 1) # my min position I can be
 

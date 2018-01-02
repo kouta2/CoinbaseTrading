@@ -5,21 +5,22 @@ from TradingAlgo.MedianCalc import MedianCalc
 
 class XSizedMedianCalc(MedianCalc):
     def __init__(self, time_data, list_of_data, size):
-        self.list_of_data = deque([Decimal(elem) for elem in list_of_data])
-        super(XSizedMedianCalc, self).__init__(time_data, list_of_data)
+        self.list_of_data = deque([round(Decimal(elem), 2) for elem in list_of_data])
+        super(XSizedMedianCalc, self).__init__(time_data, list(self.list_of_data))
         self.time_data = deque(time_data)
-        self.size = size
+        self.SIZE = size
 
     def add_time(self, time):
         self.time_data.append(time)
-        if len(self.time_data) > self.size:
+        if len(self.time_data) > self.SIZE:
             self.time_data.popleft()
 
     def add_data(self, data):
-        self.list_of_data.append(Decimal(data))
-        self.push_data(Decimal(data))
-        if len(self.list_of_data) > self.size:
-            self.remove_data_from_heap(self.list_of_data.popleft())
+        val = round(Decimal(data), 2)
+        self.list_of_data.append(val)
+        self.push_data(val)
+        if len(self.list_of_data) > self.SIZE:
+            self.remove_data_from_heap(round(Decimal(self.list_of_data.popleft()), 2))
 
 
 if __name__=="__main__":

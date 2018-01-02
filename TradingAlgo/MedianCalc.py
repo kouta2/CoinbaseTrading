@@ -13,22 +13,22 @@ class MedianCalc(object):
         if len(self.max_heap) > len(self.min_heap):
             return self.max_heap[0][1]
         else:
-            return (self.max_heap[0][1] + self.min_heap[0]) / 2
+            return round((self.max_heap[0][1] + self.min_heap[0]) / 2, 2)
 
     def push_data(self, data):
         if len(self.max_heap) > len(self.min_heap):
-            heapq.heappush(self.min_heap, (heapq.heappushpop(self.max_heap, (-data, data)))[1])
+            heapq.heappush(self.min_heap, (heapq.heappushpop(self.max_heap, (round(-data, 2), data)))[1])
         else:
             val = heapq.heappushpop(self.min_heap, data)
-            heapq.heappush(self.max_heap, (-val, val))
+            heapq.heappush(self.max_heap, (round(-val, 2), val))
 
     def remove_data_from_heap(self, data):
         if data <= self.max_heap[0][1]:
             try:
-                self.max_heap.remove((-data, data))
+                self.max_heap.remove((round(-data, 2), data))
                 if len(self.max_heap) < len(self.min_heap):
-                    val = heapq.heappop(self.min_heap)
-                    heapq.heappush(self.max_heap, (-val, val))
+                    val = round(heapq.heappop(self.min_heap), 2)
+                    heapq.heappush(self.max_heap, (round(-val, 2), val))
             except ValueError:
                 print('Value Does Not Exist in Max Heap!')
         else:
