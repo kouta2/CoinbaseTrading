@@ -40,6 +40,8 @@ class OrderBook(gdax.OrderBook):
         self.bids = []
         for i in range(max(0, len(new_bids) - 1), max(0, len(new_bids) - 1 - self.DEPTH_OF_LOCAL_BOOK), -1):
             self.bids.append(Order(new_bids[i][0], new_bids[i][1], new_bids[i][2], 'bid', False))
+        # logging.info("{UPDATING_BOOK: asks: %s, bids: %s}", [ask.get_price() for ask in self.asks], [bid.get_price() for bid in self.bids])
+
 
     def get_sell_orders(self):
         return self.asks
@@ -49,7 +51,7 @@ class OrderBook(gdax.OrderBook):
 
 
 if __name__=="__main__":
-    o = OrderBook('BCH-USD')
+    o = OrderBook('BTC-USD')
     i = 0
     while True:
         o.update_book()

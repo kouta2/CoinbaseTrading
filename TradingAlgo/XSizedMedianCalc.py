@@ -20,7 +20,7 @@ class XSizedMedianCalc(MedianCalc):
         self.list_of_data.append(val)
         self.push_data(val)
         if len(self.list_of_data) > self.SIZE:
-            self.remove_data_from_heap(round(Decimal(self.list_of_data.popleft()), 2))
+            self.remove_data_from_heap(self.list_of_data.popleft())
 
 
 if __name__=="__main__":

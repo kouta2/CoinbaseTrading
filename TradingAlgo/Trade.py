@@ -282,14 +282,16 @@ if __name__=="__main__":
     API_PASS = (token_info[0].split(':'))[1].strip()
     API_KEY = (token_info[1].split(':'))[1].strip()
     API_SECRET = (token_info[2].split(':'))[1].strip()
-    product_id = 'BCH-USD'
+    product_id = 'BTC-USD'
     num_days_of_historic_data = 2
 
-    trade_algo = TradeAlgo(API_KEY, API_SECRET, API_PASS, product_id, num_days_of_historic_data)
-
-    trade_algo.execute()
-
-    trade_algo.close_connections()
+    while True:
+        try:
+            trade_algo = TradeAlgo(API_KEY, API_SECRET, API_PASS, product_id, num_days_of_historic_data)
+            trade_algo.execute()
+            trade_algo.close_connections()
+        except BaseException as e:
+            logging.info('{ type: ERROR_IN_MAIN, time: %s, error: %s}', datetime.utcnow(), e)
 
 
 
